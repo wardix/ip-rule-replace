@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+
+import argparse
+import subprocess
+
+def silent_execute(command):
+    subprocess.run(command, shell=False, capture_output=False, text=False)
+
+
+def get_rule_priorities(selector):
+    command = ['ip', 'rule', 'show'] + selector.split()
+    result = subprocess.run(command, shell=False, capture_output=True, text=True)
+    output = result.stdout
+    priorities = []
+    for line in output.splitlines():
+        if not line.strip():
+            continue
+        priority, _ = line.split(':')
+        priorities.append(int(priority))
+    return priorities
+
+
+def get_new_priority(priorities, start=0):
+    priority = start
+    while priority in priorities:
+        priority += 1
+    return priority
+
+
+def add_rule(priority, selector, table):
+    command = ['ip', 'rule', 'add', 'prio', str(priority)] + selector.split() + ['table', table]
+    silent_execute(command)
+
+
+def delete_rules(priorities, selector):
+    for priority in priorities:
+        command = ['ip', 'rule', 'del', 'prio', str(priority)] + selector.split()
+        silent_execute(command)
+
+
+def main():
+    parser = argparse.ArgumentParser(description='IP routing policy manipulation')
+    parser.add_argument('--selector', required=True, help='rule selector')
+    parser.add_argument('--table', required=True, help='routing table')
+    args = parser.parse_args()
+
+    priorities = get_rule_priorities(args.selector)
+    priority = get_new_priority(priorities=priorities)
+    add_rule(priority, args.selector, args.table)
+    delete_rules(priorities, args.selector)
+
+
+if __name__ == '__main__':
+    main()
